@@ -1,0 +1,82 @@
+services:
+  wp-proxy:
+    default: true
+    image: q0rban/wp-proxy
+    depends: php
+    aliases:
+      - '2020'
+      - '2021'
+  php:
+    image: tugboatqa/php:8.1-apache
+    checkout: true
+    depends: mysql
+    commands:
+      init:
+        - apt-get update
+
+        - curl -fsSL https://deb.nodesource.com/setup_14.x | bash -
+        - apt-get install -y rsync libzip-dev nodejs libmagickwand-dev
+
+        - a2enmod rewrite headers
+
+        - docker-php-ext-install mysqli exif zip opcache
+        - pecl install imagick-beta -y
+        - docker-php-ext-enable imagick
+
+        - curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        - chmod +x wp-cli.phar
+        - mv wp-cli.phar /usr/local/bin/wp
+
+        - mkdir -p "${TUGBOAT_ROOT}/build"
+        - ln -snf "${TUGBOAT_ROOT}/build" "${DOCROOT}"
+        - ln -snf "${TUGBOAT_ROOT}/.tugboat/.htaccess" "${DOCROOT}/.htaccess"
+
+      update:
+        - npm install
+        - composer install
+        - wp --allow-root core download --path="$DOCROOT" --force
+        - ln -snf "${TUGBOAT_ROOT}" "${DOCROOT}/wp-content/plugins/performance"
+
+        - rm -f $DOCROOT/wp-config.php
+        - wp --allow-root --path=$DOCROOT config create
+            --dbhost=mysql
+            --dbname=tugboat
+            --dbuser=tugboat
+            --dbpass=tugboat
+        - wp --allow-root --path=$DOCROOT core multisite-install
+            --subdomains
+            --url=example.com
+            --title="WordPress Core"
+            --admin_user=admin
+            --admin_password=admin
+            --admin_email=admin@example.com
+
+        - wp --allow-root --path=$DOCROOT plugin install wordpress-importer --activate
+        - curl -O https://raw.githubusercontent.com/WPTT/theme-test-data/master/theme-preview.xml
+        - wp --allow-root --path=$DOCROOT --authors=create --url=example.com import theme-preview.xml
+        - wp --allow-root --path=$DOCROOT plugin activate performance
+
+        - wp --path=$DOCROOT --allow-root site create --slug=2020 --title="Twenty Twenty"
+        - wp --allow-root --path=$DOCROOT --url=2020.example.com plugin install wordpress-importer --activate
+        - wp --allow-root --path=$DOCROOT --url=2020.example.com --authors=create import theme-preview.xml
+        - wp --allow-root --path=$DOCROOT --url=2020.example.com theme install twentytwenty --activate
+        - wp --allow-root --path=$DOCROOT --url=2020.example.com plugin activate performance
+
+        - wp --path=$DOCROOT --allow-root site create --slug=2021 --title="Twenty Twenty-One"
+        - wp --allow-root --path=$DOCROOT --url=2021.example.com plugin install wordpress-importer --activate
+        - wp --allow-root --path=$DOCROOT --url=2021.example.com --authors=create import theme-preview.xml
+        - wp --allow-root --path=$DOCROOT --url=2021.example.com theme install twentytwentyone --activate
+        - wp --allow-root --path=$DOCROOT --url=2021.example.com plugin activate performance
+
+        - apt-get clean
+        - rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+      build:
+        - npm install
+        - composer install
+
+  mysql:
+    image: tugboatqa/mysql:5
+    commands:
+      update:
+        - mysql -e "DROP DATABASE IF EXISTS tugboat; CREATE DATABASE tugboat;"

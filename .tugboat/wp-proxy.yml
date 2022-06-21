@@ -1,0 +1,5 @@
+backend_uri: http://php
+sites:
+  example.com: ${TUGBOAT_DEFAULT_SERVICE_URL_HOST}
+  2020.example.com: 2020-${TUGBOAT_DEFAULT_SERVICE_TOKEN}.tugboatqa.com
+  2021.example.com: 2021-${TUGBOAT_DEFAULT_SERVICE_TOKEN}.tugboatqa.com
